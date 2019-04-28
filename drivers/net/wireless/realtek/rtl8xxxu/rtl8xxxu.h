@@ -1195,6 +1195,50 @@ struct rtl8723bu_c2h {
 
 struct rtl8xxxu_fileops;
 
+/*mlme related.*/
+enum wireless_mode {
+	WIRELESS_MODE_UNKNOWN = 0,
+	//Sub-Element
+	WIRELESS_MODE_B = BIT(0), // tx: cck only , rx: cck only, hw: cck
+	WIRELESS_MODE_G = BIT(1), // tx: ofdm only, rx: ofdm & cck, hw: cck & ofdm
+	WIRELESS_MODE_A = BIT(2), // tx: ofdm only, rx: ofdm only, hw: ofdm only
+	WIRELESS_MODE_N_24G = BIT(3), // tx: MCS only, rx: MCS & cck, hw: MCS & cck
+	WIRELESS_MODE_N_5G = BIT(4), // tx: MCS only, rx: MCS & ofdm, hw: ofdm only
+	WIRELESS_AUTO = BIT(5),
+	WIRELESS_MODE_AC = BIT(6),
+	WIRELESS_MODE_MAX = (WIRELESS_MODE_B|WIRELESS_MODE_G|WIRELESS_MODE_A|WIRELESS_MODE_N_24G|WIRELESS_MODE_N_5G|WIRELESS_MODE_AC),
+};
+
+/* from rtlwifi/wifi.h */
+enum ratr_table_mode_new {
+        RATEID_IDX_BGN_40M_2SS = 0,
+        RATEID_IDX_BGN_40M_1SS = 1,
+        RATEID_IDX_BGN_20M_2SS_BN = 2,
+        RATEID_IDX_BGN_20M_1SS_BN = 3,
+        RATEID_IDX_GN_N2SS = 4,
+        RATEID_IDX_GN_N1SS = 5,
+        RATEID_IDX_BG = 6,
+        RATEID_IDX_G = 7,
+        RATEID_IDX_B = 8,
+        RATEID_IDX_VHT_2SS = 9,
+        RATEID_IDX_VHT_1SS = 10,
+        RATEID_IDX_MIX1 = 11,
+        RATEID_IDX_MIX2 = 12,
+        RATEID_IDX_VHT_3SS = 13,
+        RATEID_IDX_BGN_3SS = 14,
+};
+
+#define RTL8XXXU_RATR_STA_INIT 0
+#define RTL8XXXU_RATR_STA_HIGH 1
+#define RTL8XXXU_RATR_STA_MID  2
+#define RTL8XXXU_RATR_STA_LOW  3
+
+struct rtl8xxxu_rate_adaptive {
+	u16 wireless_mode;
+	u8 ratr_index;
+	u8 rssi_level;		/* INIT, HIGH, MIDDLE, LOW */
+} __packed;
+
 struct rtl8xxxu_priv {
 	struct ieee80211_hw *hw;
 	struct usb_device *udev;
@@ -1299,6 +1343,7 @@ struct rtl8xxxu_priv {
 	u8 pi_enabled:1;
 	u8 no_pape:1;
 	u8 int_buf[USB_INTR_CONTENT_LENGTH];
+	struct rtl8xxxu_rate_adaptive ra_info;
 };
 
 struct rtl8xxxu_rx_urb {
