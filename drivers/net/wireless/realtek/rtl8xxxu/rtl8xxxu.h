@@ -1239,6 +1239,11 @@ struct rtl8xxxu_rate_adaptive {
 	u8 rssi_level;		/* INIT, HIGH, MIDDLE, LOW */
 } __packed;
 
+struct rtl8xxxu_watchdog {
+	struct ieee80211_vif *vif;
+	struct delayed_work ra_wq;
+};
+
 struct rtl8xxxu_priv {
 	struct ieee80211_hw *hw;
 	struct usb_device *udev;
@@ -1344,6 +1349,7 @@ struct rtl8xxxu_priv {
 	u8 no_pape:1;
 	u8 int_buf[USB_INTR_CONTENT_LENGTH];
 	struct rtl8xxxu_rate_adaptive ra_info;
+	struct rtl8xxxu_watchdog watchdog;
 };
 
 struct rtl8xxxu_rx_urb {
@@ -1380,6 +1386,8 @@ struct rtl8xxxu_fileops {
 			      bool ht40);
 	void (*update_rate_mask) (struct rtl8xxxu_priv *priv,
 				  u32 ramask, int sgi);
+	void (*refresh_rate_mask) (struct rtl8xxxu_priv *priv, int signal,
+				   struct ieee80211_sta *sta);
 	void (*report_connect) (struct rtl8xxxu_priv *priv,
 				u8 macid, bool connect);
 	void (*fill_txdesc) (struct ieee80211_hw *hw, struct ieee80211_hdr *hdr,

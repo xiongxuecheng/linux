@@ -4565,6 +4565,7 @@ rtl8xxxu_bss_info_changed(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 				sgi = 1;
 			rcu_read_unlock();
 
+			priv->watchdog.vif = vif;
 			ra = &priv->ra_info;
 			ra->wireless_mode = rtl8xxxu_wireless_mode(hw, sta);
 			ra->ratr_index = RATEID_IDX_BGN_40M_2SS;
@@ -5822,6 +5823,38 @@ rtl8xxxu_ampdu_action(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	return 0;
 }
 
+static void rtl8xxxu_watchdog_callback(struct work_struct *work)
+{
+	struct ieee80211_vif *vif;
+	struct rtl8xxxu_watchdog *wdog;
+	struct rtl8xxxu_priv *priv;
+
+	wdog = container_of(work, struct rtl8xxxu_watchdog, ra_wq.work);
+	priv = container_of(wdog, struct rtl8xxxu_priv, watchdog);
+	vif = wdog->vif;
+
+	if (vif) {
+		int signal;
+		struct ieee80211_sta *sta;
+
+		rcu_read_lock();
+		sta = ieee80211_find_sta(vif, vif->bss_conf.bssid);
+		if (!sta) {
+			struct device *dev = &priv->udev->dev;
+			dev_info(dev, "%s: no sta found\n", __func__);
+			rcu_read_unlock();
+			return;
+		}
+		rcu_read_unlock();
+
+		signal = ieee80211_ave_rssi(vif);
+		if (priv->fops->refresh_rate_mask)
+			priv->fops->refresh_rate_mask(priv, signal, sta);
+	}
+
+	schedule_delayed_work(&priv->watchdog.ra_wq, 2 * HZ);
+}
+
 static int rtl8xxxu_start(struct ieee80211_hw *hw)
 {
 	struct rtl8xxxu_priv *priv = hw->priv;
@@ -5878,6 +5911,8 @@ static int rtl8xxxu_start(struct ieee80211_hw *hw)
 
 		ret = rtl8xxxu_submit_rx_urb(priv, rx_urb);
 	}
+
+	schedule_delayed_work(&priv->watchdog.ra_wq, 2* HZ);
 exit:
 	/*
 	 * Accept all data and mgmt frames
@@ -6101,6 +6136,7 @@ static int rtl8xxxu_probe(struct usb_interface *interface,
 	INIT_LIST_HEAD(&priv->rx_urb_pending_list);
 	spin_lock_init(&priv->rx_urb_lock);
 	INIT_WORK(&priv->rx_urb_wq, rtl8xxxu_rx_urb_work);
+	INIT_DELAYED_WORK(&priv->watchdog.ra_wq, rtl8xxxu_watchdog_callback);
 
 	usb_set_intfdata(interface, hw);
 
@@ -6225,6 +6261,8 @@ static void rtl8xxxu_disconnect(struct usb_interface *interface)
 	kfree(priv->fw_data);
 	mutex_destroy(&priv->usb_buf_mutex);
 	mutex_destroy(&priv->h2c_mutex);
+
+	cancel_delayed_work_sync(&priv->watchdog.ra_wq);
 
 	if (priv->udev->state != USB_STATE_NOTATTACHED) {
 		dev_info(&priv->udev->dev,
